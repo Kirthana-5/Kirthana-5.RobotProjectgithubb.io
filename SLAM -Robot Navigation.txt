@@ -1,0 +1,111 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from pandas import DataFrame
+import seaborn as sns
+
+def make_data(N, num_landmarks, world_size, measurement_range, motion_noise, measurement_noise, distance):
+    data = []
+    for i in range(N):
+        measurements = []
+        for j in range(num_landmarks):
+            measurements.append([j, np.random.uniform(-measurement_range, measurement_range),
+                                    np.random.uniform(-measurement_range, measurement_range)])
+        motion = (np.random.uniform(-distance, distance), np.random.uniform(-distance, distance))
+        data.append((measurements, motion))
+    return data
+
+def display_world(world_size, last_pose, landmarks):
+    plt.figure()
+    plt.xlim(0, world_size)
+    plt.ylim(0, world_size)
+    if landmarks:
+        lx, ly = zip(*landmarks)
+        plt.scatter(lx, ly, marker='x', c='red', label='Landmarks')
+    if last_pose:
+        plt.scatter(last_pose[0], last_pose[1], c='blue', label='Last Pose')
+    plt.legend()
+    plt.title("SLAM Result")
+    plt.grid()
+    plt.show()
+
+num_landmarks = 5
+N = 20
+world_size = 100.0
+measurement_range = 50.0
+motion_noise = 2.0
+measurement_noise = 2.0
+distance = 20.0
+
+data = make_data(N, num_landmarks, world_size, measurement_range, motion_noise, measurement_noise, distance)
+time_step = 0
+print('Example measurements: \n', data[time_step][0])
+print('\n')
+print('Example motion: \n', data[time_step][1])
+
+def initialize_constraints(N, num_landmarks, world_size):
+    dim = N + num_landmarks
+    omega_1 = np.zeros((dim, dim))
+    xi_1 = np.zeros((dim,))
+    omega_1[0][0] = 1
+    xi_1[0] = world_size / 2
+    omega_2 = np.zeros((dim, dim))
+    xi_2 = np.zeros((dim,))
+    omega_2[0][0] = 1
+    xi_2[0] = world_size / 2
+    return omega_1, xi_1, omega_2, xi_2
+
+def slam(data, N, num_landmarks, world_size, motion_noise, measurement_noise):
+    coefficients = [1, -1, -1, 1]
+    omega_1, xi_1, omega_2, xi_2 = initialize_constraints(N, num_landmarks, world_size)
+    for i in range(len(data)):
+        landmarks = data[i][0]
+        motion = data[i][1]
+        for landmark in landmarks:
+            index1 = [i, i, N + landmark[0], N + landmark[0]]
+            index2 = [i, N + landmark[0], i, N + landmark[0]]
+            omega_1[index1, index2] = omega_1[index1, index2] + np.divide(coefficients, measurement_noise)
+            xi_1[[i, N + landmark[0]]] = xi_1[[i, N + landmark[0]]] + np.divide(
+                [-landmark[1], landmark[1]], measurement_noise)
+            omega_2[index1, index2] = omega_2[index1, index2] + np.divide(coefficients, measurement_noise)
+            xi_2[[i, N + landmark[0]]] = xi_2[[i, N + landmark[0]]] + np.divide(
+                [-landmark[2], landmark[2]], measurement_noise)
+        index1 = [i, i, i + 1, i + 1]
+        index2 = [i, i + 1, i, i + 1]
+        omega_1[index1, index2] = omega_1[index1, index2] + np.divide(coefficients, motion_noise)
+        xi_1[[i, i + 1]] = xi_1[[i, i + 1]] + np.divide([-motion[0], motion[0]], motion_noise)
+        omega_2[index1, index2] = omega_2[index1, index2] + np.divide(coefficients, motion_noise)
+        xi_2[[i, i + 1]] = xi_2[[i, i + 1]] + np.divide([-motion[1], motion[1]], motion_noise)
+    try:
+        mu_1 = np.linalg.inv(omega_1) @ xi_1
+        mu_2 = np.linalg.inv(omega_2) @ xi_2
+    except np.linalg.LinAlgError:
+        return None
+    mu = []
+    for i in range(len(mu_1)):
+        mu.extend((mu_1[i], mu_2[i]))
+    return mu
+
+def get_poses_landmarks(mu, N):
+    poses = []
+    for i in range(N):
+        poses.append((mu[2*i], mu[2*i+1]))
+    landmarks = []
+    for i in range(num_landmarks):
+        landmarks.append((mu[2*(N+i)], mu[2*(N+i)+1]))
+    return poses, landmarks
+
+def print_all(poses, landmarks):
+    print('\nEstimated Poses:')
+    for pose in poses:
+        print('[' + ', '.join('%.3f' % p for p in pose) + ']')
+    print('\nEstimated Landmarks:')
+    for landmark in landmarks:
+        print('[' + ', '.join('%.3f' % l for l in landmark) + ']')
+
+mu = slam(data, N, num_landmarks, world_size, motion_noise, measurement_noise)
+if mu is not None:
+    poses, landmarks = get_poses_landmarks(mu, N)
+    print_all(poses, landmarks)
+    plt.rcParams["figure.figsize"] = (20, 20)
+    print('Last pose: ', poses[-1])
+    display_world(int(world_size), poses[-1], landmarks)

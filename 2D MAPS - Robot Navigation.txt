@@ -1,0 +1,41 @@
+import matplotlib.pyplot as plt
+import numpy as np
+
+fig, ax = plt.subplots()
+
+map_width = 10
+map_height = 8
+
+ax.set_xlim(0, map_width)
+ax.set_ylim(0, map_height)
+
+obstacle_x = [2, 4, 7]
+obstacle_y = [3, 5, 2]
+ax.scatter(obstacle_x, obstacle_y, color='red', marker='s', label='Obstacles')
+
+landmark_data = [
+    (8, 6, 'Landmark A'),
+    (1, 1, 'Landmark B'),
+    (6, 4, 'Landmark C')
+]
+
+for x, y, label in landmark_data:
+    ax.scatter(x, y, color='blue', marker='o', label=label)
+
+robot_x = np.linspace(1, 8, 50)
+robot_y = 2 * np.sin(np.linspace(0, np.pi, 50)) + 4
+ax.plot(robot_x, robot_y, color='green', label='Robot Path')
+
+ax.quiver(robot_x[:-1], robot_y[:-1], robot_x[1:]-robot_x[:-1], robot_y[1:]-robot_y[:-1], angles='xy', scale_units='xy', scale=1, color='green', width=0.003, headwidth=5, headlength=6, label='Robot Movement')
+
+ax.set_xlabel('X-axis')
+ax.set_ylabel('Y-axis')
+ax.set_title('Complex 2D Map with Landmarks and Robot Path')
+
+ax.legend()
+
+ax.set_xticks(np.arange(0, map_width + 1, 1))
+ax.set_yticks(np.arange(0, map_height + 1, 1))
+ax.grid(which='both', linestyle='--', linewidth=0.5)
+
+plt.show()
